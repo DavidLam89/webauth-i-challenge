@@ -3,22 +3,16 @@ const helmet = require('helmet');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const Users = require('./users/users-model.js');
+const session = require('express-session');
+
+const sessionConfig = require('./auth/session-config.js');
 
 const server = express();
 
 server.use(helmet());
 server.use(express.json());
 server.use(cors());
-
-server.use('/api/restricted/*', loggedin);
-
-server.get('/api/restricted/*', (req, res) => {
-  Users.find()
-    .then(users => {
-      res.json(users);
-    })
-    .catch(err => res.send(err));
-});
+server.use(session(sessionConfig));
 
 server.post('/api/register', (req, res) => {
 
@@ -40,14 +34,32 @@ server.post('/api/login', (req, res) => {
     .then(user => {
     
       if (user && bcrypt.compareSync(password, user.password)) {
-        res.status(200).json({ message: `Logged in` });
+        req.session.user = user;
+        res.status(200).json({ message: `Welcome ${user.username}` });
       } else {
-        res.status(401).json({ message: 'You shall not pass!' });
+        res.status(401).json({ message: 'Invalid Credentials' });
       }
     })
     .catch(error => {
       res.status(500).json(error);
     });
+});
+
+server.get('/api/logout', (req, res) => {
+  if (req.session) {
+    req.session.destroy(err => {
+      if (err) {
+        res.status(500).json({
+          message:
+            'error',
+        });
+      } else {
+        res.status(200).json({ message: 'thanks for visiting' });
+      }
+    });
+  } else {
+    res.status(200).json({ message: 'thanks for visiting' });
+  }
 });
 
 server.get('/api/users', loggedin, (req, res) => {
@@ -59,24 +71,15 @@ server.get('/api/users', loggedin, (req, res) => {
 });
 
 function loggedin(req, res, next) {
-  const { username, password } = req.headers;
-
-  if (username && password) {
-    Users.findBy({ username })
-      .first()
-      .then(user => {
-        if (user && bcrypt.compareSync(password, user.password)) {
-          next();
-        } else {
-          res.status(401).json({ message: 'You shall not pass!' });
-        }
-      })
-      .catch(error => {
-        res.status(500).json(error);
-      });
-  } else {
-    res.status(401).json({ message: 'You shall not pass!' });
-  }
+    try {
+      if (req && req.session && req.session.user) {
+        next();
+      } else {
+        res.status(401).json({ message: 'Invalid Credentials' });
+      }
+    } catch (error) {
+      res.status(500).json({ message: 'you broke it!' });
+    }
 }
 
 const port = process.env.PORT || 5000;
