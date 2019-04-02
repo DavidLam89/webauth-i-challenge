@@ -2,8 +2,6 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-
-const db = require('./database/dbConfig.js');
 const Users = require('./users/users-model.js');
 
 const server = express();
@@ -11,6 +9,16 @@ const server = express();
 server.use(helmet());
 server.use(express.json());
 server.use(cors());
+
+server.use('/api/restricted/*', loggedin);
+
+server.get('/api/restricted/*', (req, res) => {
+  Users.find()
+    .then(users => {
+      res.json(users);
+    })
+    .catch(err => res.send(err));
+});
 
 server.post('/api/register', (req, res) => {
 
@@ -27,7 +35,6 @@ server.post('/api/register', (req, res) => {
 
 server.post('/api/login', (req, res) => {
   let { username, password } = req.body;
-  console.log({username});
   Users.findBy({ username })
     .first()
     .then(user => {
